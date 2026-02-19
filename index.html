@@ -6,93 +6,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { margin:0; font-family: Arial, sans-serif; }
-#map { height: 100vh; width: 100%; }
-
-.control-panel {
-    position:absolute;
-    top:10px;
-    left:10px;
-    background:white;
-    padding:15px;
-    border-radius:8px;
-    box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    z-index:5;
-    width:250px;
+html, body {
+    margin:0;
+    padding:0;
+    height:100%;
+    font-family: Arial, sans-serif;
 }
 
-.control-panel input,
-.control-panel select,
-.control-panel button {
+#map {
+    height:100%;
     width:100%;
-    margin-bottom:8px;
-    padding:6px;
-}
-
-.legend {
-    background:white;
-    padding:10px;
-    margin:10px;
-    border-radius:6px;
-    box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    font-size:13px;
-}
-
-.legend span {
-    display:inline-block;
-    width:15px;
-    height:10px;
-    margin-right:6px;
 }
 </style>
 </head>
+
 <body>
+
 <div id="map"></div>
 
 <script>
-let map;
-let layerVisible = true;
-let allFeatures = [];
 
 function initMap() {
 
-    map = new google.maps.Map(document.getElementById("map"), {
+    const map = new google.maps.Map(document.getElementById("map"), {
         zoom:7,
-        center:{lat:-3.3167,lng:114.5900},
+        center:{lat:-3.3167, lng:114.5900},
         mapTypeId:'terrain'
     });
 
-    map.data.loadGeoJson('pbph.geojson', null, function(features){
-        allFeatures = features;
-    });
+    // Load GeoJSON
+    map.data.loadGeoJson('pbph.geojson');
 
-    map.data.setStyle(styleFeature);
-
-    // Hover Highlight + Tooltip
-    map.data.addListener('mouseover', function(event){
-        map.data.overrideStyle(event.feature,{
-            fillColor:'#ff5722',
-            fillOpacity:0.8
-        });
-
-        const nama = event.feature.getProperty('NAMOBJ');
-        const tooltip = new google.maps.InfoWindow({
-            content:nama,
-            position:event.latLng
-        });
-        tooltip.open(map);
-        event.feature.tooltip = tooltip;
-    });
-
-    map.data.addListener('mouseout', function(event){
-        map.data.revertStyle();
-        if(event.feature.tooltip){
-            event.feature.tooltip.close();
-        }
+    // Style polygon
+    map.data.setStyle({
+        fillColor:'#ff9800',
+        strokeColor:'#e65100',
+        strokeWeight:2,
+        fillOpacity:0.5
     });
 
     const infoWindow = new google.maps.InfoWindow();
 
+    // Klik polygon
     map.data.addListener('click', function(event){
 
         const nama = event.feature.getProperty('NAMOBJ');
@@ -102,18 +57,19 @@ function initMap() {
         const jenis = event.feature.getProperty('JENIS');
 
         infoWindow.setContent(`
-            <div style="min-width:250px">
-            <h3>${nama}</h3>
-            <b>Status:</b> ${status}<br>
-            <b>Jenis:</b> ${jenis}<br>
-            <b>No SK:</b> ${no_sk}<br>
-            <b>Luas:</b> ${Number(luas).toLocaleString()} Ha
+            <div style="min-width:220px">
+            <b>${nama}</b><br><br>
+            Status: ${status}<br>
+            Jenis: ${jenis}<br>
+            No SK: ${no_sk}<br>
+            Luas: ${Number(luas).toLocaleString()} Ha
             </div>
         `);
 
         infoWindow.setPosition(event.latLng);
         infoWindow.open(map);
 
+        // Zoom ke polygon
         const bounds = new google.maps.LatLngBounds();
         event.feature.getGeometry().forEachLatLng(function(latlng){
             bounds.extend(latlng);
@@ -121,71 +77,14 @@ function initMap() {
         map.fitBounds(bounds);
     });
 
-    document.getElementById('searchBox').addEventListener('input', filterData);
-    document.getElementById('statusFilter').addEventListener('change', filterData);
-
-    const legend = document.createElement('div');
-    legend.className='legend';
-    legend.innerHTML=`
-        <b>Legenda</b><br>
-        <div><span style="background:#ff9800"></span>PBPH</div>
-    `;
-    map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
 }
 
-function styleFeature(feature){
-    return {
-        fillColor:'#ff9800',
-        strokeColor:'#e65100',
-        strokeWeight:2,
-        fillOpacity:0.4
-    };
-}
-
-function filterData(){
-    const keyword = document.getElementById('searchBox').value.toLowerCase();
-    const statusFilter = document.getElementById('statusFilter').value;
-
-    map.data.setStyle(function(feature){
-        const nama = feature.getProperty('NAMOBJ').toLowerCase();
-        const status = feature.getProperty('STAT_IZIN');
-
-        const matchSearch = nama.includes(keyword);
-        const matchStatus = (statusFilter === 'all' || status === statusFilter);
-
-        if(matchSearch && matchStatus){
-            return styleFeature(feature);
-        } else {
-            return { visible:false };
-        }
-    });
-}
-
-function toggleLayer(){
-    layerVisible = !layerVisible;
-    map.data.setStyle(layerVisible ? styleFeature : {visible:false});
-}
-
-function exportData(){
-    let csv = "Nama,Status,No_SK,TGL_SK,Jenis,Luas\n";
-    allFeatures.forEach(f=>{
-        csv += `"${f.getProperty('NAMOBJ')}","${f.getProperty('STAT_IZIN')}","${f.getProperty('NO_SK')}","${f.getProperty('JENIS')}","${f.getProperty('LUAS')}"\n`;
-    });
-
-    const blob = new Blob([csv],{type:'text/csv'});
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = "data_pbph.csv";
-    link.click();
-}
 </script>
 
+<!-- GANTI API KEY DI BAWAH INI -->
 <script async defer
 src="https://maps.googleapis.com/maps/api/js?key=AIzaSyApN8xPjCe-LWS2w9UQ06mb0-DvFA0OSxw&callback=initMap">
 </script>
 
 </body>
 </html>
-
-
-
