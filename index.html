@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>WebGIS PBPH Kalimantan Selatan</title>
+<title>WebGIS PBPH</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
@@ -11,6 +11,18 @@
 <style>
 body { margin:0; }
 #map { height:100vh; }
+
+.filter-box {
+    position:absolute;
+    top:10px;
+    left:10px;
+    background:white;
+    padding:10px;
+    border-radius:6px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    z-index:1000;
+    font-size:14px;
+}
 
 .legend {
     background:white;
@@ -31,24 +43,31 @@ body { margin:0; }
 </head>
 <body>
 
+<div class="filter-box">
+<b>Filter Kawasan Hutan</b><br>
+<select id="filterF">
+    <option value="ALL">Semua</option>
+    <option value="HL">HL</option>
+    <option value="HP">HP</option>
+    <option value="HPT">HPT</option>
+    <option value="HPK">HPK</option>
+</select>
+</div>
+
 <div id="map"></div>
 
 <script>
 
-// ==========================
-// BASEMAP
-// ==========================
-
 var map = L.map('map').setView([-3.3, 115], 7);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
     attribution:'© OpenStreetMap contributors'
 }).addTo(map);
 
 
-// ==========================
-// WARNA BERDASARKAN F2025
-// ==========================
+// ===================
+// WARNA F2025
+// ===================
 
 function getColor(f){
     return f === "HL" ? "#2e7d32" :
@@ -59,29 +78,27 @@ function getColor(f){
 }
 
 
-// ==========================
-// PBPH LAYER
-// ==========================
+// ===================
+// PBPH
+// ===================
 
 fetch('pbph.geojson')
 .then(res => res.json())
 .then(data => {
 
-    L.geoJSON(data, {
-        style: {
+    L.geoJSON(data,{
+        style:{
             color:'#e65100',
             fillColor:'#ff9800',
             weight:2,
             fillOpacity:0.5
         },
-        onEachFeature: function(feature, layer){
+        onEachFeature:function(feature,layer){
             var p = feature.properties;
-
             layer.bindPopup(`
                 <b>${p.NAMOBJ || '-'}</b><br>
                 Status: ${p.STAT_IZIN || '-'}<br>
                 Jenis: ${p.JENIS || '-'}<br>
-                F2025: ${p.F2025 || '-'}<br>
                 Luas: ${p.LUAS ? Number(p.LUAS).toLocaleString() : '-'} Ha
             `);
         }
@@ -90,17 +107,18 @@ fetch('pbph.geojson')
 });
 
 
-// ==========================
-// KAWASAN HUTAN (BERWARNA)
-// ==========================
+// ===================
+// KAWASAN HUTAN + FILTER
+// ===================
+
+var kawasanLayer;
 
 fetch('Kawasanhutan.json')
 .then(res => res.json())
 .then(data => {
 
-    L.geoJSON(data, {
-
-        style: function(feature){
+    kawasanLayer = L.geoJSON(data,{
+        style:function(feature){
             return {
                 color:"#1b5e20",
                 weight:1,
@@ -108,25 +126,48 @@ fetch('Kawasanhutan.json')
                 fillOpacity:0.4
             }
         },
-
-        onEachFeature: function(feature, layer){
+        onEachFeature:function(feature,layer){
             var p = feature.properties;
-
             layer.bindPopup(`
                 <b>Kawasan Hutan</b><br>
-                F2025: ${p.F2025 || '-'}<br>
                 Luas: ${p.LUAS ? Number(p.LUAS).toLocaleString() : '-'} Ha
             `);
         }
-
     }).addTo(map);
 
 });
 
 
-// ==========================
-// LEGENDA DINAMIS F2025
-// ==========================
+// ===================
+// FILTER LOGIC
+// ===================
+
+document.getElementById("filterF").addEventListener("change", function(){
+
+    var selected = this.value;
+
+    kawasanLayer.eachLayer(function(layer){
+
+        var f = layer.feature.properties.F2025;
+
+        if(selected === "ALL"){
+            layer.setStyle({opacity:1, fillOpacity:0.4});
+        }
+        else if(f === selected){
+            layer.setStyle({opacity:1, fillOpacity:0.6});
+        }
+        else{
+            layer.setStyle({opacity:0, fillOpacity:0});
+        }
+
+    });
+
+});
+
+
+// ===================
+// LEGENDA
+// ===================
 
 var legend = L.control({position:'bottomright'});
 
@@ -135,7 +176,7 @@ legend.onAdd = function () {
     var div = L.DomUtil.create('div', 'legend');
     var categories = ["HL","HP","HPT","HPK"];
 
-    div.innerHTML += "<b>Kawasan Hutan (F2025)</b><br>";
+    div.innerHTML += "<b>Kawasan Hutan</b><br>";
 
     for (var i = 0; i < categories.length; i++) {
         div.innerHTML +=
