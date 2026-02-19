@@ -5,85 +5,105 @@
 <title>WebGIS PBPH Kalimantan Selatan</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<style>
-html, body {
-    margin:0;
-    padding:0;
-    height:100%;
-    font-family: Arial, sans-serif;
-}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-#map {
-    height:100%;
-    width:100%;
+<style>
+body { margin:0; font-family: Arial, sans-serif; }
+#map { height:100vh; }
+
+.legend {
+    background:white;
+    padding:10px;
+    border-radius:6px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    font-size:13px;
+}
+.legend span {
+    display:inline-block;
+    width:15px;
+    height:10px;
+    margin-right:6px;
 }
 </style>
 </head>
-
 <body>
 
 <div id="map"></div>
 
 <script>
 
-function initMap() {
+// Inisialisasi Map
+var map = L.map('map').setView([-3.3167,114.5900], 7);
 
-    const map = new google.maps.Map(document.getElementById("map"), {
-        zoom:7,
-        center:{lat:-3.3167, lng:114.5900},
-        mapTypeId:'terrain'
-    });
+// Basemap GRATIS
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-    // Load GeoJSON
-    map.data.loadGeoJson('pbph.geojson');
+var geoLayer;
 
-    // Style polygon
-    map.data.setStyle({
-        fillColor:'#ff9800',
-        strokeColor:'#e65100',
-        strokeWeight:2,
-        fillOpacity:0.5
-    });
+// Load GeoJSON
+fetch('pbph.geojson')
+.then(res => res.json())
+.then(data => {
 
-    const infoWindow = new google.maps.InfoWindow();
+    geoLayer = L.geoJSON(data, {
 
-    // Klik polygon
-    map.data.addListener('click', function(event){
+        style: function(feature){
+            return {
+                color: "#e65100",
+                weight: 2,
+                fillColor: "#ff9800",
+                fillOpacity: 0.4
+            };
+        },
 
-        const nama = event.feature.getProperty('NAMOBJ');
-        const luas = event.feature.getProperty('LUAS');
-        const status = event.feature.getProperty('STAT_IZIN');
-        const no_sk = event.feature.getProperty('NO_SK');
-        const jenis = event.feature.getProperty('JENIS');
+        onEachFeature: function (feature, layer) {
 
-        infoWindow.setContent(`
-            <div style="min-width:220px">
-            <b>${nama}</b><br><br>
-            Status: ${status}<br>
-            Jenis: ${jenis}<br>
-            No SK: ${no_sk}<br>
-            Luas: ${Number(luas).toLocaleString()} Ha
-            </div>
-        `);
+            // Hover highlight
+            layer.on('mouseover', function () {
+                layer.setStyle({
+                    fillColor: "#ff5722",
+                    fillOpacity: 0.8
+                });
+            });
 
-        infoWindow.setPosition(event.latLng);
-        infoWindow.open(map);
+            layer.on('mouseout', function () {
+                geoLayer.resetStyle(layer);
+            });
 
-        // Zoom ke polygon
-        const bounds = new google.maps.LatLngBounds();
-        event.feature.getGeometry().forEachLatLng(function(latlng){
-            bounds.extend(latlng);
-        });
-        map.fitBounds(bounds);
-    });
+            // Popup
+            layer.bindPopup(`
+                <b>${feature.properties.NAMOBJ}</b><br>
+                Status: ${feature.properties.STAT_IZIN}<br>
+                Jenis: ${feature.properties.JENIS}<br>
+                No SK: ${feature.properties.NO_SK}<br>
+                Luas: ${Number(feature.properties.LUAS).toLocaleString()} Ha
+            `);
+        }
 
-}
+    }).addTo(map);
 
-</script>
+    map.fitBounds(geoLayer.getBounds());
 
-<!-- GANTI API KEY DI BAWAH INI -->
-<script async defer
-src="https://maps.googleapis.com/maps/api/js?key=AIzaSyApN8xPjCe-LWS2w9UQ06mb0-DvFA0OSxw&callback=initMap">
+});
+
+// Legend
+var legend = L.control({position: 'bottomright'});
+
+legend.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'legend');
+    div.innerHTML = `
+        <b>Legenda</b><br>
+        <div><span style="background:#ff9800"></span>PBPH</div>
+        <div><span style="background:#ff5722"></span>Hover</div>
+    `;
+    return div;
+};
+
+legend.addTo(map);
+
 </script>
 
 </body>
