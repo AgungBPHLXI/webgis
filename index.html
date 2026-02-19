@@ -9,7 +9,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-body { margin:0; font-family: Arial, sans-serif; }
+body { margin:0; }
 #map { height:100vh; }
 
 .legend {
@@ -33,70 +33,110 @@ body { margin:0; font-family: Arial, sans-serif; }
 
 <script>
 
-// Inisialisasi Map
 var map = L.map('map').setView([-3.3167,114.5900], 7);
 
 // Basemap GRATIS
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-var geoLayer;
+// =========================
+// STYLE
+// =========================
 
-// Load GeoJSON
+function stylePBPH(feature){
+    return {
+        color: "#e65100",
+        weight: 2,
+        fillColor: "#ff9800",
+        fillOpacity: 0.4
+    };
+}
+
+function styleProvinsi(feature){
+    return {
+        color: "red",
+        weight: 3,
+        fillOpacity: 0
+    };
+}
+
+function styleKabupaten(feature){
+    return {
+        color: "blue",
+        weight: 1,
+        fillOpacity: 0
+    };
+}
+
+// =========================
+// LOAD LAYERS
+// =========================
+
+var layerPBPH = L.geoJSON(null, {
+    style: stylePBPH,
+    onEachFeature: function(feature, layer){
+        layer.bindPopup(`
+            <b>${feature.properties.NAMOBJ}</b><br>
+            Status: ${feature.properties.STAT_IZIN}<br>
+            Luas: ${Number(feature.properties.LUAS).toLocaleString()} Ha
+        `);
+    }
+}).addTo(map);
+
+var layerProvinsi = L.geoJSON(null, {
+    style: styleProvinsi
+}).addTo(map);
+
+var layerKabupaten = L.geoJSON(null, {
+    style: styleKabupaten
+}).addTo(map);
+
+// Load file
 fetch('pbph.geojson')
 .then(res => res.json())
 .then(data => {
-
-    geoLayer = L.geoJSON(data, {
-
-        style: function(feature){
-            return {
-                color: "#e65100",
-                weight: 2,
-                fillColor: "#ff9800",
-                fillOpacity: 0.4
-            };
-        },
-
-        onEachFeature: function (feature, layer) {
-
-            // Hover highlight
-            layer.on('mouseover', function () {
-                layer.setStyle({
-                    fillColor: "#ff5722",
-                    fillOpacity: 0.8
-                });
-            });
-
-            layer.on('mouseout', function () {
-                geoLayer.resetStyle(layer);
-            });
-
-            // Popup
-            layer.bindPopup(`
-                <b>${feature.properties.NAMOBJ}</b><br>
-                Status: ${feature.properties.STAT_IZIN}<br>
-                Jenis: ${feature.properties.JENIS}<br>
-                No SK: ${feature.properties.NO_SK}<br>
-                Luas: ${Number(feature.properties.LUAS).toLocaleString()} Ha
-            `);
-        }
-
-    }).addTo(map);
-
-    map.fitBounds(geoLayer.getBounds());
-
+    layerPBPH.addData(data);
+    map.fitBounds(layerPBPH.getBounds());
 });
 
-// Legend
+fetch('batasprovinsi.geojson')
+.then(res => res.json())
+.then(data => {
+    layerProvinsi.addData(data);
+});
+
+fetch('bataskabupaten.geojson')
+.then(res => res.json())
+.then(data => {
+    layerKabupaten.addData(data);
+});
+
+// =========================
+// LAYER CONTROL
+// =========================
+
+var overlayMaps = {
+    "PBPH": layerPBPH,
+    "Batas Provinsi": layerProvinsi,
+    "Batas Kabupaten": layerKabupaten
+};
+
+L.control.layers(null, overlayMaps).addTo(map);
+
+// =========================
+// LEGEND
+// =========================
+
 var legend = L.control({position: 'bottomright'});
 
-legend.onAdd = function (map) {
+legend.onAdd = function () {
     var div = L.DomUtil.create('div', 'legend');
     div.innerHTML = `
         <b>Legenda</b><br>
         <div><span style="background:#ff9800"></span>PBPH</div>
+        <div><span style="background:red"></span>Batas Provinsi</div>
+        <div><span style="background:blue"></span>Batas Kabupaten</div>
     `;
     return div;
 };
@@ -107,4 +147,3 @@ legend.addTo(map);
 
 </body>
 </html>
-
