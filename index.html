@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WebGIS PBPH Kalimantan Selatan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body { margin:0; font-family: Arial, sans-serif; }
+#map { height: 100vh; width: 100%; }
+
+.control-panel {
+    position:absolute;
+    top:10px;
+    left:10px;
+    background:white;
+    padding:15px;
+    border-radius:8px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    z-index:5;
+    width:250px;
+}
+
+.control-panel input,
+.control-panel select,
+.control-panel button {
+    width:100%;
+    margin-bottom:8px;
+    padding:6px;
+}
+
+.legend {
+    background:white;
+    padding:10px;
+    margin:10px;
+    border-radius:6px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    font-size:13px;
+}
+
+.legend span {
+    display:inline-block;
+    width:15px;
+    height:10px;
+    margin-right:6px;
+}
+</style>
+</head>
+<body>
+
+<div class="control-panel">
+    <h3>Kontrol PBPH</h3>
+
+    🔍 <b>Search Nama</b>
+    <input type="text" id="searchBox" placeholder="Cari nama PBPH">
+
+    📊 <b>Filter Status</b>
+    <select id="statusFilter">
+        <option value="all">Semua</option>
+        <option value="Aktif">Aktif</option>
+    </select>
+
+    🗂 <b>Layer</b>
+    <button onclick="toggleLayer()">On/Off Layer</button>
+
+    📄 <b>Export</b>
+    <button onclick="exportData()">Export CSV</button>
+</div>
+
+<div id="map"></div>
+
+<script>
+let map;
+let layerVisible = true;
+let allFeatures = [];
+
+function initMap() {
+
+    map = new google.maps.Map(document.getElementById("map"), {
+        zoom:7,
+        center:{lat:-3.3167,lng:114.5900},
+        mapTypeId:'terrain'
+    });
+
+    map.data.loadGeoJson('pbph.geojson', null, function(features){
+        allFeatures = features;
+    });
+
+    map.data.setStyle(styleFeature);
+
+    // Hover Highlight + Tooltip
+    map.data.addListener('mouseover', function(event){
+        map.data.overrideStyle(event.feature,{
+            fillColor:'#ff5722',
+            fillOpacity:0.8
+        });
+
+        const nama = event.feature.getProperty('NAMOBJ');
+        const tooltip = new google.maps.InfoWindow({
+            content:nama,
+            position:event.latLng
+        });
+        tooltip.open(map);
+        event.feature.tooltip = tooltip;
+    });
+
+    map.data.addListener('mouseout', function(event){
+        map.data.revertStyle();
+        if(event.feature.tooltip){
+            event.feature.tooltip.close();
+        }
+    });
+
+    const infoWindow = new google.maps.InfoWindow();
+
+    map.data.addListener('click', function(event){
+
+        const nama = event.feature.getProperty('NAMOBJ');
+        const luas = event.feature.getProperty('LUAS');
+        const status = event.feature.getProperty('STAT_IZIN');
+        const no_sk = event.feature.getProperty('NO_SK');
+        const jenis = event.feature.getProperty('JENIS');
+
+        infoWindow.setContent(`
+            <div style="min-width:250px">
+            <h3>${nama}</h3>
+            <b>Status:</b> ${status}<br>
+            <b>Jenis:</b> ${jenis}<br>
+            <b>No SK:</b> ${no_sk}<br>
+            <b>Luas:</b> ${Number(luas).toLocaleString()} Ha
+            </div>
+        `);
+
+        infoWindow.setPosition(event.latLng);
+        infoWindow.open(map);
+
+        const bounds = new google.maps.LatLngBounds();
+        event.feature.getGeometry().forEachLatLng(function(latlng){
+            bounds.extend(latlng);
+        });
+        map.fitBounds(bounds);
+    });
+
+    document.getElementById('searchBox').addEventListener('input', filterData);
+    document.getElementById('statusFilter').addEventListener('change', filterData);
+
+    const legend = document.createElement('div');
+    legend.className='legend';
+    legend.innerHTML=`
+        <b>Legenda</b><br>
+        <div><span style="background:#ff9800"></span>PBPH</div>
+        <div><span style="background:#ff5722"></span>Hover</div>
+    `;
+    map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
+}
+
+function styleFeature(feature){
+    return {
+        fillColor:'#ff9800',
+        strokeColor:'#e65100',
+        strokeWeight:2,
+        fillOpacity:0.4
+    };
+}
+
+function filterData(){
+    const keyword = document.getElementById('searchBox').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+
+    map.data.setStyle(function(feature){
+        const nama = feature.getProperty('NAMOBJ').toLowerCase();
+        const status = feature.getProperty('STAT_IZIN');
+
+        const matchSearch = nama.includes(keyword);
+        const matchStatus = (statusFilter === 'all' || status === statusFilter);
+
+        if(matchSearch && matchStatus){
+            return styleFeature(feature);
+        } else {
+            return { visible:false };
+        }
+    });
+}
+
+function toggleLayer(){
+    layerVisible = !layerVisible;
+    map.data.setStyle(layerVisible ? styleFeature : {visible:false});
+}
+
+function exportData(){
+    let csv = "Nama,Status,No_SK,TGL_SK,Jenis,Luas\n";
+    allFeatures.forEach(f=>{
+        csv += `"${f.getProperty('NAMOBJ')}","${f.getProperty('STAT_IZIN')}","${f.getProperty('NO_SK')}","${f.getProperty('JENIS')}","${f.getProperty('LUAS')}"\n`;
+    });
+
+    const blob = new Blob([csv],{type:'text/csv'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = "data_pbph.csv";
+    link.click();
+}
+</script>
+
+<script async defer
+src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCHttwrDC5fEUzaD2WL9A2BpqZDnQ82-is&callback=initMap">
+</script>
+
+</body>
+</html>
